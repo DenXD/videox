@@ -231,6 +231,22 @@ body {
   text-decoration: underline;
 }
 
+.vixdio-about {
+  font-size: 11.5px;
+  padding: 2px 0 4px;
+}
+
+.vixdio-about-link {
+  display: block;
+  color: #8a7cff;
+  text-decoration: none;
+  padding: 2px 0;
+}
+
+.vixdio-about-link:hover {
+  text-decoration: underline;
+}
+
 .vixdio-footer {
   display: flex;
   align-items: center;

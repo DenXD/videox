@@ -84,7 +84,11 @@ function showEffectiveMode(res) {
   const count = res.videos ? `${res.videos} video${res.videos > 1 ? 's' : ''}` : 'No video';
   statusEl.textContent = res.videos ? `${count} · ${label}` : count;
 
-  if (settings.renderMode !== 'webgl' || res.activeMode === 'webgl') return;
+  if (settings.renderMode !== 'webgl' || res.activeMode === 'webgl') {
+    noteEl.textContent = '';
+    noteEl.classList.remove('is-warn');
+    return;
+  }
 
   if (res.fallbackReason) {
     noteEl.textContent = FALLBACK_NOTE[res.fallbackReason] || FALLBACK_NOTE.unsupported;

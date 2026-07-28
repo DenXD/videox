@@ -46,3 +46,7 @@ Produces `videox-<version>.zip` ready for upload to the [developer dashboard](ht
 ## Privacy
 
 No data collection of any kind — see [PRIVACY.md](PRIVACY.md).
+
+## Author
+
+[onoff.top](https://onoff.top/) · [LinkedIn](https://www.linkedin.com/in/tikhonovdv/)

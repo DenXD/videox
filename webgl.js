@@ -169,6 +169,8 @@ class VixdioRenderer {
     const h = v.clientHeight;
     if (!w || !h) return;
 
+    this.lastLeft = v.offsetLeft;
+    this.lastTop = v.offsetTop;
     this.canvas.style.left = `${v.offsetLeft}px`;
     this.canvas.style.top = `${v.offsetTop}px`;
     this.canvas.style.width = `${w}px`;
@@ -200,6 +202,23 @@ class VixdioRenderer {
     if (!video.isConnected) {
       this.fallback('detached');
       return;
+    }
+    // Sites like YouTube rebuild the player DOM after we attach, silently
+    // dropping the canvas (or resetting the video's inline style). Without
+    // this the video stays hidden while the canvas draws into nowhere —
+    // black picture, audio still playing. Re-anchor and re-assert each frame.
+    if (this.canvas.parentElement !== video.parentElement) {
+      video.after(this.canvas);
+      const parent = video.parentElement;
+      if (parent && getComputedStyle(parent).position === 'static') {
+        parent.style.position = 'relative';
+        this.parentPositioned = parent;
+      }
+      this.sync();
+    }
+    if (video.style.opacity !== '0') video.style.opacity = '0';
+    if (video.offsetLeft !== this.lastLeft || video.offsetTop !== this.lastTop) {
+      this.sync();
     }
     if (video.readyState < 2) return;
 
