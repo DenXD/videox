@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Video X",
+  "version": "0.2.0",
+  "description": "Control gamma, brightness, contrast, speed, EQ and volume boost for any video on any site.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Video X video controls"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["webgl.js", "content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "speed-up": {
+      "suggested_key": { "default": "Alt+Period" },
+      "description": "Speed +0.25x"
+    },
+    "speed-down": {
+      "suggested_key": { "default": "Alt+Comma" },
+      "description": "Speed -0.25x"
+    },
+    "speed-reset": {
+      "suggested_key": { "default": "Alt+0" },
+      "description": "Reset speed to 1x"
+    },
+    "toggle-pip": {
+      "suggested_key": { "default": "Alt+P" },
+      "description": "Pop out video (Picture-in-Picture)"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

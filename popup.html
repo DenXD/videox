@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="vixdio-card">
+  <header class="vixdio-header">
+    <span class="vixdio-logo">Video X</span>
+    <span class="vixdio-host" id="host"></span>
+  </header>
+
+  <nav class="vixdio-tabs" id="tabs">
+    <button class="vixdio-tab is-active" data-tab="main">Main</button>
+    <button class="vixdio-tab" data-tab="picture">Picture</button>
+    <button class="vixdio-tab" data-tab="audio">Audio</button>
+    <button class="vixdio-tab" data-tab="more">More</button>
+  </nav>
+
+  <main class="vixdio-controls">
+    <section class="vixdio-panel is-active" data-panel="main">
+      <div class="vixdio-row vixdio-row-check">
+        <label for="enhanced">Enhanced quality <small>smoother dark scenes, auto-fallback on DRM</small></label>
+        <input type="checkbox" id="enhanced" class="vixdio-check" />
+      </div>
+      <p class="vixdio-note" id="mode-note"></p>
+      <div class="vixdio-row" data-key="gamma">
+        <label>Gamma</label>
+        <input type="range" min="0.5" max="2.5" step="0.05" value="1" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="speed">
+        <label>Speed</label>
+        <input type="range" min="0.25" max="4" step="0.05" value="1" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="brightness">
+        <label>Brightness</label>
+        <input type="range" min="25" max="200" step="5" value="100" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="volume">
+        <label>Volume</label>
+        <input type="range" min="0" max="400" step="10" value="100" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <button class="vixdio-btn vixdio-pip vixdio-btn-main">
+        <svg class="vixdio-btn-icon" width="20" height="20"><g transform="translate(0, 2)"><polygon fill-rule="nonzero" points="1.85008844 1.51464844 18.2421138 1.51464844 18.2421138 7.74121094 19.2421138 7.74121094 19.2421138 0.514648438 0.850088443 0.514648438 0.850088443 11.7244572 9.16539331 11.7758693 9.17157603 10.7758885 1.85008844 10.7306209" fill="currentColor"></polygon><rect x="10.5" y="9" width="9.5" height="6" fill="currentColor"></rect><path d="M8.49517931,6.9934339 L4.58268904,3.10539669 L3.87780235,3.81471662 L7.75590296,7.6685791 L5.14025649,7.6685791 L5.14025649,8.6685791 L9.49517931,8.6685791 L9.49517931,4.64446771 L8.49517931,4.64446771 L8.49517931,6.9934339 Z" fill-rule="nonzero" fill="currentColor"></path></g></svg>
+        <span>Pop out video <small>floats over other windows</small></span>
+      </button>
+    </section>
+
+    <section class="vixdio-panel" data-panel="picture">
+      <div class="vixdio-row" data-key="contrast">
+        <label>Contrast</label>
+        <input type="range" min="25" max="200" step="5" value="100" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="saturation">
+        <label>Saturation</label>
+        <input type="range" min="0" max="300" step="5" value="100" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="hue">
+        <label>Hue</label>
+        <input type="range" min="-180" max="180" step="5" value="0" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+    </section>
+
+    <section class="vixdio-panel" data-panel="audio">
+      <div class="vixdio-row" data-key="bass">
+        <label>Bass</label>
+        <input type="range" min="-12" max="12" step="1" value="0" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="treble">
+        <label>Treble</label>
+        <input type="range" min="-12" max="12" step="1" value="0" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row" data-key="balance">
+        <label>Balance</label>
+        <input type="range" min="-100" max="100" step="10" value="0" class="vixdio-slider" />
+        <span class="vixdio-value"></span>
+      </div>
+      <div class="vixdio-row vixdio-row-check" data-key="nightMode">
+        <label for="night">Night mode <small>even out loud &amp; quiet</small></label>
+        <input type="checkbox" id="night" class="vixdio-check" />
+      </div>
+      <div class="vixdio-row vixdio-row-check" data-key="mono">
+        <label for="mono">Mono</label>
+        <input type="checkbox" id="mono" class="vixdio-check" />
+      </div>
+      <div class="vixdio-row vixdio-row-check" data-key="preservePitch">
+        <label for="pitch">Preserve pitch</label>
+        <input type="checkbox" id="pitch" checked class="vixdio-check" />
+      </div>
+      <p class="vixdio-note">EQ, night mode and boost may stay silent on videos served without CORS.</p>
+    </section>
+
+    <section class="vixdio-panel" data-panel="more">
+      <div class="vixdio-actions">
+        <button class="vixdio-btn vixdio-pip">
+          <svg class="vixdio-btn-icon" width="20" height="20"><g transform="translate(0, 2)"><polygon fill-rule="nonzero" points="1.85008844 1.51464844 18.2421138 1.51464844 18.2421138 7.74121094 19.2421138 7.74121094 19.2421138 0.514648438 0.850088443 0.514648438 0.850088443 11.7244572 9.16539331 11.7758693 9.17157603 10.7758885 1.85008844 10.7306209" fill="currentColor"></polygon><rect x="10.5" y="9" width="9.5" height="6" fill="currentColor"></rect><path d="M8.49517931,6.9934339 L4.58268904,3.10539669 L3.87780235,3.81471662 L7.75590296,7.6685791 L5.14025649,7.6685791 L5.14025649,8.6685791 L9.49517931,8.6685791 L9.49517931,4.64446771 L8.49517931,4.64446771 L8.49517931,6.9934339 Z" fill-rule="nonzero" fill="currentColor"></path></g></svg>
+          <span>Pop out video <small>floats over other windows</small></span>
+        </button>
+        <button id="screenshot" class="vixdio-btn">Screenshot frame</button>
+        <button id="forget" class="vixdio-btn vixdio-btn-danger">Forget this site</button>
+      </div>
+      <h2>Shortcuts</h2>
+      <ul class="vixdio-keys">
+        <li><kbd>Alt</kbd>+<kbd>.</kbd> speed up</li>
+        <li><kbd>Alt</kbd>+<kbd>,</kbd> speed down</li>
+        <li><kbd>Alt</kbd>+<kbd>0</kbd> reset speed</li>
+        <li><kbd>Alt</kbd>+<kbd>P</kbd> pop out video</li>
+      </ul>
+      <button id="shortcuts" class="vixdio-link">Customize shortcuts…</button>
+      <p class="vixdio-note">Settings are saved per site and sync with your Chrome profile.</p>
+    </section>
+  </main>
+
+  <footer class="vixdio-footer">
+    <span class="vixdio-status" id="status"></span>
+    <button id="reset" class="vixdio-reset">Reset</button>
+  </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

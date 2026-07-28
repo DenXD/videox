@@ -1,0 +1,258 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 300px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  background: #0b0b10;
+  padding: 6px;
+  color: #e6e6ef;
+}
+
+.vixdio-card {
+  background: #16161e;
+  border: 1px solid #2b2b3a;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.vixdio-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+
+.vixdio-logo {
+  font-weight: 700;
+  font-size: 15px;
+  background: linear-gradient(90deg, #8a7cff, #4fd1ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.vixdio-host {
+  font-size: 11px;
+  color: #7a7a8c;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vixdio-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 0 14px 8px;
+}
+
+.vixdio-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid #2b2b3a;
+  padding: 6px 0;
+  font-size: 12px;
+  color: #8a8a9c;
+  cursor: pointer;
+}
+
+.vixdio-tab:hover {
+  color: #d0d0dd;
+}
+
+.vixdio-tab.is-active {
+  color: #fff;
+  border-bottom-color: #8a7cff;
+  font-weight: 600;
+}
+
+.vixdio-controls {
+  padding: 0 14px;
+  min-height: 168px;
+}
+
+.vixdio-panel {
+  display: none;
+}
+
+.vixdio-panel.is-active {
+  display: block;
+}
+
+.vixdio-panel h2 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7a7a8c;
+  margin: 10px 0 6px;
+}
+
+.vixdio-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.vixdio-row label {
+  color: #b8b8c8;
+}
+
+.vixdio-row label small {
+  display: block;
+  font-size: 10px;
+  color: #7a7a8c;
+}
+
+.vixdio-row-check {
+  grid-template-columns: 1fr auto;
+}
+
+.vixdio-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #8a7cff;
+}
+
+.vixdio-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #2b2b3a;
+  cursor: pointer;
+}
+
+.vixdio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8a7cff;
+  border: none;
+}
+
+.vixdio-check {
+  accent-color: #8a7cff;
+}
+
+.vixdio-note {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #7a7a8c;
+  margin-top: 5px;
+}
+
+.vixdio-note.is-warn {
+  color: #ffb454;
+}
+
+.vixdio-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.vixdio-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #2b2b3a;
+  color: #e6e6ef;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vixdio-btn:hover {
+  background: #3a3a4e;
+}
+
+.vixdio-btn-icon {
+  flex: none;
+}
+
+.vixdio-btn small {
+  display: block;
+  font-size: 10px;
+  color: #7a7a8c;
+}
+
+.vixdio-btn-main {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.vixdio-btn-danger:hover {
+  background: #4e2b33;
+}
+
+.vixdio-keys {
+  list-style: none;
+  font-size: 11.5px;
+  color: #b8b8c8;
+}
+
+.vixdio-keys li {
+  padding: 2px 0;
+}
+
+.vixdio-keys kbd {
+  background: #2b2b3a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10.5px;
+  font-family: inherit;
+}
+
+.vixdio-link {
+  background: none;
+  border: none;
+  color: #8a7cff;
+  font-size: 11.5px;
+  padding: 6px 0 0;
+  cursor: pointer;
+}
+
+.vixdio-link:hover {
+  text-decoration: underline;
+}
+
+.vixdio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 12px;
+}
+
+.vixdio-status {
+  font-size: 11px;
+  color: #7a7a8c;
+}
+
+.vixdio-reset {
+  background: #2b2b3a;
+  color: #e6e6ef;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.vixdio-reset:hover {
+  background: #3a3a4e;
+}
