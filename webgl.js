@@ -165,14 +165,31 @@ class VixdioRenderer {
   sync() {
     if (this.destroyed) return;
     const v = this.video;
-    const w = v.clientWidth;
-    const h = v.clientHeight;
-    if (!w || !h) return;
+    const cw = v.clientWidth;
+    const ch = v.clientHeight;
+    if (!cw || !ch) return;
+
+    // The element box can have a different aspect ratio than the video frame
+    // (theater mode, 4:3 content in a 16:9 player) — the browser letterboxes
+    // the picture inside it. Match the canvas to the drawn picture, not the
+    // element, or the frame gets stretched.
+    let x = v.offsetLeft;
+    let y = v.offsetTop;
+    let w = cw;
+    let h = ch;
+    if (v.videoWidth && v.videoHeight) {
+      const scale = Math.min(cw / v.videoWidth, ch / v.videoHeight);
+      w = Math.max(1, Math.round(v.videoWidth * scale));
+      h = Math.max(1, Math.round(v.videoHeight * scale));
+      x += Math.round((cw - w) / 2);
+      y += Math.round((ch - h) / 2);
+    }
 
     this.lastLeft = v.offsetLeft;
     this.lastTop = v.offsetTop;
-    this.canvas.style.left = `${v.offsetLeft}px`;
-    this.canvas.style.top = `${v.offsetTop}px`;
+    this.lastVideoW = v.videoWidth;
+    this.canvas.style.left = `${x}px`;
+    this.canvas.style.top = `${y}px`;
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
 
@@ -217,7 +234,11 @@ class VixdioRenderer {
       this.sync();
     }
     if (video.style.opacity !== '0') video.style.opacity = '0';
-    if (video.offsetLeft !== this.lastLeft || video.offsetTop !== this.lastTop) {
+    if (
+      video.offsetLeft !== this.lastLeft ||
+      video.offsetTop !== this.lastTop ||
+      video.videoWidth !== this.lastVideoW
+    ) {
       this.sync();
     }
     if (video.readyState < 2) return;

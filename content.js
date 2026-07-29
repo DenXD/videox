@@ -268,6 +268,9 @@ function toast(text) {
       'pointer-events:none;transition:opacity .2s;opacity:0';
     document.documentElement.appendChild(el);
   }
+  // Only the fullscreen subtree renders while fullscreen is active.
+  const host = document.fullscreenElement || document.documentElement;
+  if (el.parentElement !== host) host.appendChild(el);
   el.textContent = text;
   el.style.opacity = '1';
   clearTimeout(toastTimer);
@@ -276,7 +279,7 @@ function toast(text) {
   }, 900);
 }
 
-function handleCommand(command) {
+function handleCommand(command, showToast = true) {
   if (command === 'speed-up') {
     settings.speed = Math.min(4, Math.round((settings.speed + 0.25) * 100) / 100);
   } else if (command === 'speed-down') {
@@ -289,8 +292,172 @@ function handleCommand(command) {
   applyAll();
   persist();
   notifySpeed();
-  toast(`${settings.speed}x`);
+  if (showToast) toast(`${settings.speed}x`);
 }
+
+// ---- on-video hover controls (work in fullscreen, where the popup can't) ----
+
+const OVERLAY_CSS =
+  '.vixdio-overlay{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;' +
+  'background:rgba(20,20,30,.5);border-radius:10px;padding:5px 8px;' +
+  'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;color:#e6e6ef;' +
+  'opacity:0;transition:opacity .15s;pointer-events:none;' +
+  'user-select:none;-webkit-user-select:none}' +
+  '.vixdio-overlay.is-visible{opacity:.3;pointer-events:auto}' +
+  '.vixdio-overlay.is-visible:hover{opacity:1}' +
+  '.vixdio-overlay button{background:none;border:none;color:#e6e6ef;font-size:14px;' +
+  'width:26px;height:24px;border-radius:6px;cursor:pointer;line-height:1;padding:0}' +
+  '.vixdio-overlay button:hover{background:rgba(138,124,255,.4)}' +
+  '.vixdio-ov-val{min-width:46px;text-align:center;color:#c9c2ff;font-variant-numeric:tabular-nums}' +
+  '.vixdio-ov-sep{width:1px;height:16px;background:rgba(255,255,255,.18);margin:0 4px}';
+
+let overlay = null;
+let overlayVideo = null;
+let overlayTimer = null;
+let overlayThrottle = 0;
+
+function overlayAction(act) {
+  if (act === 'speed-down' || act === 'speed-up') {
+    handleCommand(act, false);
+  } else if (act === 'gamma-down' || act === 'gamma-up') {
+    const d = act === 'gamma-up' ? 0.1 : -0.1;
+    settings.gamma = Math.min(2.5, Math.max(0.5, Math.round((settings.gamma + d) * 100) / 100));
+    applyAll();
+    persist();
+  } else if (act === 'pip' && overlayVideo && overlayVideo.isConnected) {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    } else {
+      overlayVideo.requestPictureInPicture().catch(() => {});
+    }
+  } else if (act === 'reset') {
+    settings = { ...DEFAULTS, renderMode: settings.renderMode };
+    applyAll();
+    persist();
+    notifySpeed();
+  }
+  refreshOverlay();
+}
+
+function ensureOverlay() {
+  if (overlay) return overlay;
+  const style = document.createElement('style');
+  style.id = 'vixdio-overlay-style';
+  style.textContent = OVERLAY_CSS;
+  (document.head || document.documentElement).appendChild(style);
+
+  overlay = document.createElement('div');
+  overlay.className = 'vixdio-overlay';
+  overlay.innerHTML =
+    '<button data-act="speed-down" title="Slower">−</button>' +
+    '<span class="vixdio-ov-val" data-val="speed"></span>' +
+    '<button data-act="speed-up" title="Faster">+</button>' +
+    '<span class="vixdio-ov-sep"></span>' +
+    '<button data-act="gamma-down" title="Gamma down">−</button>' +
+    '<span class="vixdio-ov-val" data-val="gamma"></span>' +
+    '<button data-act="gamma-up" title="Gamma up">+</button>' +
+    '<span class="vixdio-ov-sep"></span>' +
+    '<button data-act="pip" title="Pop out video">⧉</button>' +
+    '<button data-act="reset" title="Reset all">↺</button>';
+  overlay.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    overlayAction(btn.dataset.act);
+  });
+  return overlay;
+}
+
+function refreshOverlay() {
+  if (!overlay) return;
+  overlay.querySelector('[data-val="speed"]').textContent = `${settings.speed}x`;
+  overlay.querySelector('[data-val="gamma"]').textContent = `γ${settings.gamma.toFixed(2)}`;
+}
+
+function showOverlay(video) {
+  ensureOverlay();
+  // Only elements inside the fullscreen subtree render while fullscreen.
+  const fs = document.fullscreenElement;
+  const host =
+    fs && fs !== video && fs.contains(video) ? fs : document.body || document.documentElement;
+  if (overlay.parentElement !== host) host.appendChild(overlay);
+  overlayVideo = video;
+  refreshOverlay();
+  const rect = video.getBoundingClientRect();
+  overlay.style.left = `${rect.left + rect.width / 2}px`;
+  overlay.style.top = `${Math.max(rect.top + 10, 10)}px`;
+  overlay.style.transform = 'translateX(-50%)';
+  overlay.classList.add('is-visible');
+}
+
+function hideOverlay() {
+  if (overlay) overlay.classList.remove('is-visible');
+}
+
+function videoAtPoint(x, y) {
+  let best = null;
+  let bestArea = 0;
+  for (const v of document.querySelectorAll('video')) {
+    const r = v.getBoundingClientRect();
+    if (r.width < 200 || r.height < 120) continue;
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    const area = r.width * r.height;
+    if (area > bestArea) {
+      best = v;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
+document.addEventListener(
+  'mousemove',
+  (e) => {
+    const now = Date.now();
+    if (now - overlayThrottle < 100) return;
+    overlayThrottle = now;
+    if (overlay && overlay.contains(e.target)) {
+      clearTimeout(overlayTimer);
+      overlayTimer = setTimeout(hideOverlay, 2500);
+      return;
+    }
+    const video = videoAtPoint(e.clientX, e.clientY);
+    clearTimeout(overlayTimer);
+    if (video) {
+      showOverlay(video);
+      overlayTimer = setTimeout(hideOverlay, 2500);
+    } else if (overlay) {
+      overlayTimer = setTimeout(hideOverlay, 300);
+    }
+  },
+  true
+);
+
+document.addEventListener('fullscreenchange', hideOverlay);
+
+// S/D keys: slow down / speed up (ignored while typing).
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    const key = e.key.toLowerCase();
+    if (key !== 's' && key !== 'd') return;
+    const t = e.target;
+    if (
+      t &&
+      (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+    ) {
+      return;
+    }
+    if (!document.querySelector('video')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handleCommand(key === 's' ? 'speed-down' : 'speed-up');
+    refreshOverlay();
+  },
+  true
+);
 
 // Pick the most prominent playable video for screenshot.
 function primaryVideo() {
@@ -357,6 +524,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     applyAll();
     notifySpeed();
+    refreshOverlay();
     sendResponse(statusPayload());
   } else if (msg.type === 'vixdio:status') {
     sendResponse(statusPayload());

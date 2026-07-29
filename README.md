@@ -14,8 +14,8 @@ Chrome extension that adds picture and audio controls to any video on any site.
 
 | Shortcut | Action |
 | --- | --- |
-| `Alt+.` | Speed +0.25x |
-| `Alt+,` | Speed −0.25x |
+| `D` or `Alt+.` | Speed +0.25x |
+| `S` or `Alt+,` | Speed −0.25x |
 | `Alt+0` | Reset speed |
 | `Alt+P` | Pop out video |
 
