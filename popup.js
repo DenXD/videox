@@ -136,6 +136,18 @@ enhancedEl.addEventListener('change', () => {
   save();
 });
 
+function sendBypass(on) {
+  if (tabId === null) return;
+  chrome.tabs.sendMessage(tabId, { type: 'vixdio:bypass', on }, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
+const peekEl = document.getElementById('peek');
+peekEl.addEventListener('mousedown', () => sendBypass(true));
+['mouseup', 'mouseleave'].forEach((ev) => peekEl.addEventListener(ev, () => sendBypass(false)));
+window.addEventListener('pagehide', () => sendBypass(false));
+
 document.getElementById('reset').addEventListener('click', () => {
   const mode = settings.renderMode;
   settings = { ...DEFAULTS, renderMode: mode };

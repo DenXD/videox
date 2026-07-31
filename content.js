@@ -250,8 +250,34 @@ function notifySpeed() {
 }
 
 function persist() {
-  if (!IS_TOP) return;
+  if (!IS_TOP || bypassStash) return;
   chrome.storage.sync.set({ [TOP_HOST]: settings }).catch(() => {});
+}
+
+// Hold-to-compare: temporarily show the unfiltered picture without touching
+// the saved configuration. Only picture keys are bypassed — speed and audio
+// stay, so playback doesn't hiccup during the comparison.
+const PICTURE_KEYS = ['gamma', 'brightness', 'contrast', 'saturation', 'hue'];
+let bypassStash = null;
+let bypassTimer = null;
+
+function setBypass(on) {
+  if (on === !!bypassStash) return;
+  if (on) {
+    bypassStash = { ...settings };
+    PICTURE_KEYS.forEach((k) => {
+      settings[k] = DEFAULTS[k];
+    });
+    // Never leave the preview stuck if the release event is lost
+    // (e.g. the popup closes while the button is held).
+    bypassTimer = setTimeout(() => setBypass(false), 15000);
+  } else {
+    clearTimeout(bypassTimer);
+    settings = bypassStash;
+    bypassStash = null;
+  }
+  applyAll();
+  refreshOverlay();
 }
 
 let toastTimer = null;
@@ -280,6 +306,7 @@ function toast(text) {
 }
 
 function handleCommand(command, showToast = true) {
+  setBypass(false);
   if (command === 'speed-up') {
     settings.speed = Math.min(4, Math.round((settings.speed + 0.25) * 100) / 100);
   } else if (command === 'speed-down') {
@@ -317,6 +344,7 @@ let overlayTimer = null;
 let overlayThrottle = 0;
 
 function overlayAction(act) {
+  if (act !== 'peek') setBypass(false);
   if (act === 'speed-down' || act === 'speed-up') {
     handleCommand(act, false);
   } else if (act === 'gamma-down' || act === 'gamma-up') {
@@ -357,15 +385,26 @@ function ensureOverlay() {
     '<span class="vixdio-ov-val" data-val="gamma"></span>' +
     '<button data-act="gamma-up" title="Gamma up">+</button>' +
     '<span class="vixdio-ov-sep"></span>' +
+    '<button data-act="peek" title="Hold to see original">👁</button>' +
     '<button data-act="pip" title="Pop out video">⧉</button>' +
     '<button data-act="reset" title="Reset all">↺</button>';
   overlay.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
-    if (!btn) return;
+    if (!btn || btn.dataset.act === 'peek') return;
     e.preventDefault();
     e.stopPropagation();
     overlayAction(btn.dataset.act);
   });
+  overlay.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.dataset.act !== 'peek') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setBypass(true);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) =>
+    overlay.addEventListener(ev, () => setBypass(false))
+  );
   return overlay;
 }
 
@@ -436,13 +475,16 @@ document.addEventListener(
 
 document.addEventListener('fullscreenchange', hideOverlay);
 
-// S/D keys: slow down / speed up (ignored while typing).
+// Player keys on every site: S/D speed, and YouTube-style J/K/L
+// (back 10s / play-pause / forward 10s). Ignored while typing.
 document.addEventListener(
   'keydown',
   (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-    const key = e.key.toLowerCase();
-    if (key !== 's' && key !== 'd') return;
+    // Physical key position, not the typed character — works on any
+    // keyboard layout (Cyrillic, AZERTY, ...).
+    const key = { KeyS: 's', KeyD: 'd', KeyJ: 'j', KeyK: 'k', KeyL: 'l' }[e.code];
+    if (!key) return;
     const t = e.target;
     if (
       t &&
@@ -450,11 +492,31 @@ document.addEventListener(
     ) {
       return;
     }
-    if (!document.querySelector('video')) return;
+    const video = primaryVideo();
+    if (!video) return;
     e.preventDefault();
     e.stopPropagation();
-    handleCommand(key === 's' ? 'speed-down' : 'speed-up');
-    refreshOverlay();
+    if (key === 's' || key === 'd') {
+      handleCommand(key === 's' ? 'speed-down' : 'speed-up');
+      refreshOverlay();
+    } else if (key === 'j') {
+      video.currentTime = Math.max(0, video.currentTime - 10);
+      toast('« 10s');
+    } else if (key === 'l') {
+      const d = video.duration;
+      video.currentTime = isFinite(d)
+        ? Math.min(d, video.currentTime + 10)
+        : video.currentTime + 10;
+      toast('10s »');
+    } else if (key === 'k') {
+      if (video.paused) {
+        video.play().catch(() => {});
+        toast('▶');
+      } else {
+        video.pause();
+        toast('❚❚');
+      }
+    }
   },
   true
 );
@@ -513,7 +575,13 @@ new MutationObserver((mutations) => {
 }).observe(document.documentElement, { childList: true, subtree: true });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'vixdio:bypass') {
+    setBypass(msg.on);
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === 'vixdio:apply') {
+    setBypass(false);
     const modeChanged = msg.settings.renderMode !== settings.renderMode;
     settings = { ...DEFAULTS, ...msg.settings };
     // Give a mode switch a clean slate so a previous failure isn't sticky.

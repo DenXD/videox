@@ -259,6 +259,19 @@ body {
   color: #7a7a8c;
 }
 
+.vixdio-footer-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.vixdio-peek {
+  padding: 6px 10px;
+}
+
+.vixdio-peek:active {
+  background: #8a7cff;
+}
+
 .vixdio-reset {
   background: #2b2b3a;
   color: #e6e6ef;

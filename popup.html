@@ -113,6 +113,7 @@
       <ul class="vixdio-keys">
         <li><kbd>D</kbd> / <kbd>Alt</kbd>+<kbd>.</kbd> speed up</li>
         <li><kbd>S</kbd> / <kbd>Alt</kbd>+<kbd>,</kbd> speed down</li>
+        <li><kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> back 10s · play/pause · forward 10s</li>
         <li><kbd>Alt</kbd>+<kbd>0</kbd> reset speed</li>
         <li><kbd>Alt</kbd>+<kbd>P</kbd> pop out video</li>
       </ul>
@@ -128,7 +129,10 @@
 
   <footer class="vixdio-footer">
     <span class="vixdio-status" id="status"></span>
-    <button id="reset" class="vixdio-reset">Reset</button>
+    <div class="vixdio-footer-btns">
+      <button id="peek" class="vixdio-reset vixdio-peek" title="Hold to see the original video">👁</button>
+      <button id="reset" class="vixdio-reset">Reset</button>
+    </div>
   </footer>
   </div>
 
