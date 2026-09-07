@@ -335,6 +335,7 @@ const OVERLAY_CSS =
   '.vixdio-overlay button{background:none;border:none;color:#e6e6ef;font-size:14px;' +
   'width:26px;height:24px;border-radius:6px;cursor:pointer;line-height:1;padding:0}' +
   '.vixdio-overlay button:hover{background:rgba(138,124,255,.4)}' +
+  '.vixdio-overlay button svg{display:block;margin:0 auto;pointer-events:none}' +
   '.vixdio-ov-val{min-width:46px;text-align:center;color:#c9c2ff;font-variant-numeric:tabular-nums}' +
   '.vixdio-ov-sep{width:1px;height:16px;background:rgba(255,255,255,.18);margin:0 4px}';
 
@@ -385,7 +386,11 @@ function ensureOverlay() {
     '<span class="vixdio-ov-val" data-val="gamma"></span>' +
     '<button data-act="gamma-up" title="Gamma up">+</button>' +
     '<span class="vixdio-ov-sep"></span>' +
-    '<button data-act="peek" title="Hold to see original">👁</button>' +
+    '<button data-act="peek" title="Hold to see original">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>' +
+    '</svg></button>' +
     '<button data-act="pip" title="Pop out video">⧉</button>' +
     '<button data-act="reset" title="Reset all">↺</button>';
   overlay.addEventListener('click', (e) => {
@@ -423,15 +428,27 @@ function showOverlay(video) {
   if (overlay.parentElement !== host) host.appendChild(overlay);
   overlayVideo = video;
   refreshOverlay();
-  const rect = video.getBoundingClientRect();
+  positionOverlay();
+  overlay.classList.add('is-visible');
+}
+
+function positionOverlay() {
+  if (!overlay || !overlayVideo || !overlayVideo.isConnected) return;
+  const rect = overlayVideo.getBoundingClientRect();
   overlay.style.left = `${rect.left + rect.width / 2}px`;
   overlay.style.top = `${Math.max(rect.top + 10, 10)}px`;
   overlay.style.transform = 'translateX(-50%)';
-  overlay.classList.add('is-visible');
 }
 
 function hideOverlay() {
   if (overlay) overlay.classList.remove('is-visible');
+}
+
+// Skip small players (feed hover-previews, thumbnails): the video must
+// cover a meaningful share of the viewport, not just an absolute size.
+function isControllableSize(r) {
+  if (r.width < 320 || r.height < 180) return false;
+  return r.width * r.height >= window.innerWidth * window.innerHeight * 0.1;
 }
 
 function videoAtPoint(x, y) {
@@ -439,7 +456,7 @@ function videoAtPoint(x, y) {
   let bestArea = 0;
   for (const v of document.querySelectorAll('video')) {
     const r = v.getBoundingClientRect();
-    if (r.width < 200 || r.height < 120) continue;
+    if (!isControllableSize(r)) continue;
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
     const area = r.width * r.height;
     if (area > bestArea) {
@@ -474,6 +491,12 @@ document.addEventListener(
 );
 
 document.addEventListener('fullscreenchange', hideOverlay);
+
+const repositionOverlay = () => {
+  if (overlay && overlay.classList.contains('is-visible')) positionOverlay();
+};
+document.addEventListener('scroll', repositionOverlay, { capture: true, passive: true });
+window.addEventListener('resize', repositionOverlay, { passive: true });
 
 // Player keys on every site: S/D speed, and YouTube-style J/K/L
 // (back 10s / play-pause / forward 10s). Ignored while typing.
