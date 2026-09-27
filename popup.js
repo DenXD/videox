@@ -7,12 +7,14 @@ const DEFAULTS = {
   speed: 1,
   preservePitch: true,
   volume: 100,
+  volumeEnabled: false,
   bass: 0,
   treble: 0,
   nightMode: false,
   balance: 0,
   mono: false,
   renderMode: 'filter',
+  disabled: false,
 };
 
 const FORMAT = {
@@ -42,6 +44,8 @@ let saveTimer = null;
 
 const statusEl = document.getElementById('status');
 const noteEl = document.getElementById('mode-note');
+const siteToggle = document.getElementById('site-toggle');
+const volumeEnabledEl = document.getElementById('volume-enabled');
 const enhancedEl = document.getElementById('enhanced');
 
 document.querySelectorAll('.vixdio-tab').forEach((tab) => {
@@ -55,7 +59,7 @@ document.querySelectorAll('.vixdio-tab').forEach((tab) => {
 
 function renderRow(row) {
   const key = row.dataset.key;
-  const input = row.querySelector('input');
+  const input = row.querySelector('input[type="range"]') || row.querySelector('input');
   if (input.type === 'checkbox') {
     input.checked = settings[key];
   } else {
@@ -70,15 +74,35 @@ function renderEnhanced() {
   noteEl.classList.remove('is-warn');
 }
 
+function renderAudioEnabled() {
+  volumeEnabledEl.checked = settings.volumeEnabled;
+  volumeEnabledEl.disabled = settings.disabled;
+  document.querySelectorAll('[data-key="volume"] input[type="range"], [data-panel="audio"] .vixdio-row:not([data-key="preservePitch"]) input').forEach((input) => {
+    input.disabled = settings.disabled || !settings.volumeEnabled;
+  });
+}
+
 function renderAll() {
   document.querySelectorAll('.vixdio-row[data-key]').forEach(renderRow);
   renderEnhanced();
+  siteToggle.textContent = settings.disabled ? 'Enable on this site' : 'Disable on this site';
+  siteToggle.disabled = !host;
+  document.querySelectorAll('.vixdio-controls input, .vixdio-pip, #screenshot, #peek, #reset').forEach((el) => {
+    el.disabled = settings.disabled;
+  });
+  renderAudioEnabled();
 }
 
 // The page reports which mode actually took effect, which can differ from the
 // requested one when capture isn't permitted or nothing is being adjusted.
 function showEffectiveMode(res) {
   if (!res) return;
+  if (settings.disabled || res.disabled) {
+    statusEl.textContent = 'Disabled on this site';
+    noteEl.textContent = '';
+    noteEl.classList.remove('is-warn');
+    return;
+  }
 
   const label = res.activeMode === 'webgl' ? 'Enhanced' : 'Regular';
   const count = res.videos ? `${res.videos} video${res.videos > 1 ? 's' : ''}` : 'No video';
@@ -120,7 +144,7 @@ function apply() {
 
 document.querySelectorAll('.vixdio-row[data-key]').forEach((row) => {
   const key = row.dataset.key;
-  const input = row.querySelector('input');
+  const input = row.querySelector('input[type="range"]') || row.querySelector('input');
   input.addEventListener('input', () => {
     settings[key] = input.type === 'checkbox' ? input.checked : Number(input.value);
     renderRow(row);
@@ -129,11 +153,27 @@ document.querySelectorAll('.vixdio-row[data-key]').forEach((row) => {
   });
 });
 
+volumeEnabledEl.addEventListener('change', () => {
+  settings.volumeEnabled = volumeEnabledEl.checked;
+  renderAudioEnabled();
+  apply();
+  save();
+});
+
 enhancedEl.addEventListener('change', () => {
   settings.renderMode = enhancedEl.checked ? 'webgl' : 'filter';
   renderEnhanced();
   apply();
   save();
+});
+
+siteToggle.addEventListener('click', async () => {
+  if (!host) return;
+  clearTimeout(saveTimer);
+  settings.disabled = !settings.disabled;
+  renderAll();
+  apply();
+  await chrome.storage.sync.set({ [host]: settings });
 });
 
 function sendBypass(on) {
@@ -205,6 +245,7 @@ document.getElementById('screenshot').addEventListener('click', () => {
 });
 
 document.getElementById('forget').addEventListener('click', () => {
+  clearTimeout(saveTimer);
   if (host) {
     chrome.storage.sync.remove(host);
     chrome.storage.local.remove(host);

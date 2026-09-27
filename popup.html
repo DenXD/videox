@@ -41,7 +41,7 @@
         <span class="vixdio-value"></span>
       </div>
       <div class="vixdio-row" data-key="volume">
-        <label>Volume</label>
+        <label class="vixdio-volume-label" for="volume-enabled"><input type="checkbox" id="volume-enabled" class="vixdio-check" aria-label="Enable volume and audio adjustments on this site" title="Let Video X control volume and audio on this site" /> Volume</label>
         <input type="range" min="0" max="400" step="10" value="100" class="vixdio-slider" />
         <span class="vixdio-value"></span>
       </div>
@@ -97,7 +97,7 @@
         <label for="pitch">Preserve pitch</label>
         <input type="checkbox" id="pitch" checked class="vixdio-check" />
       </div>
-      <p class="vixdio-note">EQ, night mode and boost may stay silent on videos served without CORS.</p>
+      <p class="vixdio-note">Select the checkbox beside Volume on Main to enable audio adjustments. EQ, night mode and boost may stay silent on videos served without CORS.</p>
     </section>
 
     <section class="vixdio-panel" data-panel="more">
@@ -134,6 +134,7 @@
       <button id="reset" class="vixdio-reset">Reset</button>
     </div>
   </footer>
+  <button id="site-toggle" class="vixdio-btn vixdio-site-toggle" disabled>Disable on this site</button>
   </div>
 
   <script src="popup.js"></script>

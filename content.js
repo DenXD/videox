@@ -7,22 +7,26 @@ const DEFAULTS = {
   speed: 1,
   preservePitch: true,
   volume: 100,
+  volumeEnabled: false,
   bass: 0,
   treble: 0,
   nightMode: false,
   balance: 0,
   mono: false,
   renderMode: 'filter',
+  disabled: false,
 };
 
 // Keys that actually change the video; renderMode alone is a no-op.
-const ADJUST_KEYS = Object.keys(DEFAULTS).filter((k) => k !== 'renderMode');
+const ADJUST_KEYS = Object.keys(DEFAULTS).filter((k) => k !== 'renderMode' && k !== 'disabled');
 
 let settings = { ...DEFAULTS };
 let fallbackReason = null;
 
 // video -> { ctx, gain, bass, treble, comp, mono, pan } audio chain
 const audioNodes = new WeakMap();
+const originalStates = new Map();
+const originalVolumes = new WeakMap();
 // video -> VixdioRenderer for enhanced mode
 const renderers = new Map();
 
@@ -90,7 +94,26 @@ function needsAudioGraph() {
   );
 }
 
+// Relinquish audio control without writing the site's current volume.
+function releaseAudio(video, restoreVolume = false) {
+  if (restoreVolume && originalVolumes.has(video)) {
+    video.volume = originalVolumes.get(video);
+  }
+  originalVolumes.delete(video);
+  const nodes = audioNodes.get(video);
+  if (nodes && !nodes.bypassed) {
+    nodes.source.disconnect();
+    nodes.source.connect(nodes.ctx.destination);
+    nodes.bypassed = true;
+  }
+}
+
 function applyAudio(video) {
+  if (!settings.volumeEnabled) {
+    releaseAudio(video);
+    return;
+  }
+  if (!originalVolumes.has(video)) originalVolumes.set(video, video.volume);
   const boost = settings.volume / 100;
   let nodes = audioNodes.get(video);
 
@@ -126,7 +149,7 @@ function applyAudio(video) {
         .connect(mono)
         .connect(pan)
         .connect(ctx.destination);
-      nodes = { ctx, gain, bass, treble, comp, mono, pan };
+      nodes = { ctx, source, gain, bass, treble, comp, mono, pan };
       audioNodes.set(video, nodes);
     } catch (e) {
       // Source already claimed (another extension) or CORS-restricted media.
@@ -134,6 +157,11 @@ function applyAudio(video) {
     }
   }
 
+  if (nodes.bypassed) {
+    nodes.source.disconnect();
+    nodes.source.connect(nodes.gain);
+    nodes.bypassed = false;
+  }
   video.volume = boost > 1 ? 1 : boost;
   nodes.gain.gain.value = boost > 1 ? boost : 1;
   nodes.bass.gain.value = settings.bass;
@@ -215,10 +243,47 @@ function applyPicture(video) {
 }
 
 function applyToVideo(video) {
+  if (settings.disabled) return;
+  if (!originalStates.has(video)) {
+    originalStates.set(video, {
+      filter: video.style.filter,
+      speed: video.playbackRate,
+      pitch: video.preservesPitch,
+    });
+  }
   applyPicture(video);
   video.playbackRate = settings.speed;
   if ('preservesPitch' in video) video.preservesPitch = settings.preservePitch;
   applyAudio(video);
+}
+
+function restoreVideos() {
+  originalStates.forEach((original, video) => {
+    teardownRenderer(video);
+    video.style.filter = original.filter;
+    video.playbackRate = original.speed;
+    if ('preservesPitch' in video) video.preservesPitch = original.pitch;
+    releaseAudio(video, true);
+  });
+  originalStates.clear();
+  hideOverlay();
+  document.getElementById('vixdio-toast')?.remove();
+}
+
+function updateSettings(next) {
+  clearTimeout(bypassTimer);
+  bypassStash = null;
+  const modeChanged = next.renderMode !== settings.renderMode;
+  settings = { ...DEFAULTS, ...next };
+  if (modeChanged) {
+    fallbackReason = null;
+    renderers.forEach((r) => r.destroy());
+    renderers.clear();
+  }
+  if (settings.disabled) restoreVideos();
+  else applyAll();
+  notifySpeed();
+  refreshOverlay();
 }
 
 function applyAll() {
@@ -236,6 +301,7 @@ function isDefault() {
 function statusPayload() {
   const enhanced = settings.renderMode === 'webgl' && !fallbackReason && renderers.size > 0;
   return {
+    disabled: settings.disabled,
     videos: document.querySelectorAll('video').length,
     activeMode: enhanced ? 'webgl' : 'filter',
     rendering: renderers.size,
@@ -246,12 +312,20 @@ function statusPayload() {
 
 function notifySpeed() {
   if (!IS_TOP) return;
-  chrome.runtime.sendMessage({ type: 'vixdio:speed', speed: settings.speed }).catch(() => {});
+  try {
+    chrome.runtime.sendMessage({ type: 'vixdio:speed', speed: settings.speed, disabled: settings.disabled }).catch(() => {});
+  } catch {
+    // Reloading the extension invalidates APIs in already-open pages.
+  }
 }
 
 function persist() {
   if (!IS_TOP || bypassStash) return;
-  chrome.storage.sync.set({ [TOP_HOST]: settings }).catch(() => {});
+  try {
+    chrome.storage.sync.set({ [TOP_HOST]: settings }).catch(() => {});
+  } catch {
+    // Keep the local controls responsive until the page is refreshed.
+  }
 }
 
 // Hold-to-compare: temporarily show the unfiltered picture without touching
@@ -262,6 +336,7 @@ let bypassStash = null;
 let bypassTimer = null;
 
 function setBypass(on) {
+  if (settings.disabled) return;
   if (on === !!bypassStash) return;
   if (on) {
     bypassStash = { ...settings };
@@ -306,6 +381,7 @@ function toast(text) {
 }
 
 function handleCommand(command, showToast = true) {
+  if (settings.disabled) return;
   setBypass(false);
   if (command === 'speed-up') {
     settings.speed = Math.min(4, Math.round((settings.speed + 0.25) * 100) / 100);
@@ -316,6 +392,7 @@ function handleCommand(command, showToast = true) {
   } else {
     return;
   }
+  refreshOverlay();
   applyAll();
   persist();
   notifySpeed();
@@ -325,19 +402,35 @@ function handleCommand(command, showToast = true) {
 // ---- on-video hover controls (work in fullscreen, where the popup can't) ----
 
 const OVERLAY_CSS =
-  '.vixdio-overlay{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;' +
-  'background:rgba(20,20,30,.5);border-radius:10px;padding:5px 8px;' +
+  '.vixdio-overlay{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:0;' +
+  'background:rgba(20,20,30,.5);border-radius:6px;padding:0;' +
   'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;color:#e6e6ef;' +
-  'opacity:0;transition:opacity .15s;pointer-events:none;' +
+  'opacity:0;transition:opacity 140ms ease-out,padding 140ms cubic-bezier(.2,.8,.2,1);pointer-events:none;' +
   'user-select:none;-webkit-user-select:none}' +
   '.vixdio-overlay.is-visible{opacity:.3;pointer-events:auto}' +
-  '.vixdio-overlay.is-visible:hover{opacity:1}' +
+  '.vixdio-overlay.is-visible:hover,.vixdio-overlay.is-visible:focus-within{opacity:1;padding:0 4px}' +
   '.vixdio-overlay button{background:none;border:none;color:#e6e6ef;font-size:14px;' +
   'width:26px;height:24px;border-radius:6px;cursor:pointer;line-height:1;padding:0}' +
   '.vixdio-overlay button:hover{background:rgba(138,124,255,.4)}' +
   '.vixdio-overlay button svg{display:block;margin:0 auto;pointer-events:none}' +
+  '.vixdio-ov-control{display:flex;align-items:center;border-radius:6px;min-height:24px}' +
+  '.vixdio-ov-control:focus-visible{outline:1px solid #c9c2ff;outline-offset:2px}' +
+  '.vixdio-ov-control button{display:block;flex:0 0 auto;width:0;opacity:0;overflow:hidden;' +
+  'visibility:hidden;pointer-events:none;transform:scale(.85);' +
+  'transition:width 140ms cubic-bezier(.2,.8,.2,1),opacity 100ms ease-out,' +
+  'transform 140ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 140ms}' +
+  '.vixdio-ov-control:hover button,.vixdio-ov-control:focus-within button{' +
+  'width:26px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition-delay:0s}' +
   '.vixdio-ov-val{min-width:46px;text-align:center;color:#c9c2ff;font-variant-numeric:tabular-nums}' +
-  '.vixdio-ov-sep{width:1px;height:16px;background:rgba(255,255,255,.18);margin:0 4px}';
+  '.vixdio-ov-speed{min-height:32px;flex:none}' +
+  '.vixdio-ov-speed .vixdio-ov-val{min-width:32px;font-size:11px;white-space:nowrap}' +
+  '.vixdio-ov-more{display:flex;align-items:center;max-width:0;opacity:0;overflow:hidden;visibility:hidden;' +
+  'transition:max-width 140ms cubic-bezier(.2,.8,.2,1),opacity 100ms ease-out,visibility 0s linear 140ms}' +
+  '.vixdio-ov-more>*{flex-shrink:0}' +
+  '.vixdio-overlay:hover .vixdio-ov-more,.vixdio-overlay:focus-within .vixdio-ov-more{' +
+  'max-width:280px;opacity:1;visibility:visible;transition-delay:0s}' +
+  '.vixdio-ov-sep{width:1px;height:16px;background:rgba(255,255,255,.18);margin:0 4px}' +
+  '@media(prefers-reduced-motion:reduce){.vixdio-overlay,.vixdio-ov-control button,.vixdio-ov-more{transition:none}}';
 
 let overlay = null;
 let overlayVideo = null;
@@ -345,12 +438,20 @@ let overlayTimer = null;
 let overlayThrottle = 0;
 
 function overlayAction(act) {
-  if (act !== 'peek') setBypass(false);
+  if (settings.disabled) return;
+  setBypass(false);
   if (act === 'speed-down' || act === 'speed-up') {
     handleCommand(act, false);
   } else if (act === 'gamma-down' || act === 'gamma-up') {
     const d = act === 'gamma-up' ? 0.1 : -0.1;
     settings.gamma = Math.min(2.5, Math.max(0.5, Math.round((settings.gamma + d) * 100) / 100));
+    refreshOverlay();
+    applyAll();
+    persist();
+  } else if (act === 'contrast-down' || act === 'contrast-up') {
+    const delta = act === 'contrast-up' ? 5 : -5;
+    settings.contrast = Math.min(200, Math.max(25, settings.contrast + delta));
+    refreshOverlay();
     applyAll();
     persist();
   } else if (act === 'pip' && overlayVideo && overlayVideo.isConnected) {
@@ -359,11 +460,6 @@ function overlayAction(act) {
     } else {
       overlayVideo.requestPictureInPicture().catch(() => {});
     }
-  } else if (act === 'reset') {
-    settings = { ...DEFAULTS, renderMode: settings.renderMode };
-    applyAll();
-    persist();
-    notifySpeed();
   }
   refreshOverlay();
 }
@@ -378,38 +474,44 @@ function ensureOverlay() {
   overlay = document.createElement('div');
   overlay.className = 'vixdio-overlay';
   overlay.innerHTML =
+    '<div class="vixdio-ov-control vixdio-ov-speed" tabindex="0" role="group" aria-label="Speed; hover or focus to show video controls">' +
     '<button data-act="speed-down" title="Slower">−</button>' +
     '<span class="vixdio-ov-val" data-val="speed"></span>' +
     '<button data-act="speed-up" title="Faster">+</button>' +
+    '</div>' +
+    '<div class="vixdio-ov-more">' +
     '<span class="vixdio-ov-sep"></span>' +
+    '<div class="vixdio-ov-control" tabindex="0" role="group" aria-label="Gamma">' +
     '<button data-act="gamma-down" title="Gamma down">−</button>' +
     '<span class="vixdio-ov-val" data-val="gamma"></span>' +
     '<button data-act="gamma-up" title="Gamma up">+</button>' +
+    '</div>' +
     '<span class="vixdio-ov-sep"></span>' +
-    '<button data-act="peek" title="Hold to see original">' +
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>' +
-    '</svg></button>' +
+    '<div class="vixdio-ov-control" tabindex="0" role="group" aria-label="Contrast">' +
+    '<button data-act="contrast-down" title="Contrast down">−</button>' +
+    '<span class="vixdio-ov-val" data-val="contrast" title="Contrast"></span>' +
+    '<button data-act="contrast-up" title="Contrast up">+</button>' +
+    '</div>' +
+    '<span class="vixdio-ov-sep"></span>' +
     '<button data-act="pip" title="Pop out video">⧉</button>' +
-    '<button data-act="reset" title="Reset all">↺</button>';
+    '</div>';
+  overlay.addEventListener('pointerenter', () => clearTimeout(overlayTimer));
+  overlay.addEventListener('pointerleave', () => {
+    clearTimeout(overlayTimer);
+    overlayTimer = setTimeout(hideOverlay, 2500);
+  });
+  overlay.addEventListener('focusin', () => clearTimeout(overlayTimer));
+  overlay.addEventListener('focusout', () => {
+    clearTimeout(overlayTimer);
+    overlayTimer = setTimeout(hideOverlay, 2500);
+  });
   overlay.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
-    if (!btn || btn.dataset.act === 'peek') return;
+    if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
     overlayAction(btn.dataset.act);
   });
-  overlay.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn || btn.dataset.act !== 'peek') return;
-    e.preventDefault();
-    e.stopPropagation();
-    setBypass(true);
-  });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) =>
-    overlay.addEventListener(ev, () => setBypass(false))
-  );
   return overlay;
 }
 
@@ -417,9 +519,11 @@ function refreshOverlay() {
   if (!overlay) return;
   overlay.querySelector('[data-val="speed"]').textContent = `${settings.speed}x`;
   overlay.querySelector('[data-val="gamma"]').textContent = `γ${settings.gamma.toFixed(2)}`;
+  overlay.querySelector('[data-val="contrast"]').textContent = `C${settings.contrast}%`;
 }
 
 function showOverlay(video) {
+  if (settings.disabled) return;
   ensureOverlay();
   // Only elements inside the fullscreen subtree render while fullscreen.
   const fs = document.fullscreenElement;
@@ -435,9 +539,9 @@ function showOverlay(video) {
 function positionOverlay() {
   if (!overlay || !overlayVideo || !overlayVideo.isConnected) return;
   const rect = overlayVideo.getBoundingClientRect();
-  overlay.style.left = `${rect.left + rect.width / 2}px`;
+  overlay.style.left = `${Math.max(10, Math.min(rect.left + 10, window.innerWidth - overlay.offsetWidth - 10))}px`;
   overlay.style.top = `${Math.max(rect.top + 10, 10)}px`;
-  overlay.style.transform = 'translateX(-50%)';
+  overlay.style.transform = 'none';
 }
 
 function hideOverlay() {
@@ -470,12 +574,12 @@ function videoAtPoint(x, y) {
 document.addEventListener(
   'mousemove',
   (e) => {
+    if (settings.disabled) return;
     const now = Date.now();
     if (now - overlayThrottle < 100) return;
     overlayThrottle = now;
     if (overlay && overlay.contains(e.target)) {
       clearTimeout(overlayTimer);
-      overlayTimer = setTimeout(hideOverlay, 2500);
       return;
     }
     const video = videoAtPoint(e.clientX, e.clientY);
@@ -503,6 +607,7 @@ window.addEventListener('resize', repositionOverlay, { passive: true });
 document.addEventListener(
   'keydown',
   (e) => {
+    if (settings.disabled) return;
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
     // Physical key position, not the typed character — works on any
     // keyboard layout (Cyrillic, AZERTY, ...).
@@ -587,7 +692,10 @@ new MutationObserver((mutations) => {
   renderers.forEach((r, video) => {
     if (!video.isConnected) teardownRenderer(video);
   });
-  if (isDefault()) return;
+  originalStates.forEach((_, video) => {
+    if (!video.isConnected) originalStates.delete(video);
+  });
+  if (settings.disabled || isDefault()) return;
   for (const m of mutations) {
     for (const node of m.addedNodes) {
       if (!(node instanceof Element)) continue;
@@ -604,18 +712,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
   if (msg.type === 'vixdio:apply') {
-    setBypass(false);
-    const modeChanged = msg.settings.renderMode !== settings.renderMode;
-    settings = { ...DEFAULTS, ...msg.settings };
-    // Give a mode switch a clean slate so a previous failure isn't sticky.
-    if (modeChanged) {
-      fallbackReason = null;
-      renderers.forEach((r) => r.destroy());
-      renderers.clear();
-    }
-    applyAll();
-    notifySpeed();
-    refreshOverlay();
+    updateSettings(msg.settings);
     sendResponse(statusPayload());
   } else if (msg.type === 'vixdio:status') {
     sendResponse(statusPayload());
@@ -624,8 +721,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === 'vixdio:screenshot') {
     // Only frames that actually hold a video answer, so the popup gets the
     // response from the right frame.
+    if (settings.disabled) return;
     const shot = captureFrame();
     if (shot) sendResponse(shot);
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes[TOP_HOST]) {
+    updateSettings(changes[TOP_HOST].newValue || DEFAULTS);
   }
 });
 
@@ -634,9 +738,7 @@ async function loadPreset() {
   let stored = await chrome.storage.sync.get(TOP_HOST);
   if (!stored[TOP_HOST]) stored = await chrome.storage.local.get(TOP_HOST);
   if (stored[TOP_HOST]) {
-    settings = { ...DEFAULTS, ...stored[TOP_HOST] };
-    applyAll();
-    notifySpeed();
+    updateSettings(stored[TOP_HOST]);
   }
 }
 loadPreset();

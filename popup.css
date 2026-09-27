@@ -285,3 +285,20 @@ body {
 .vixdio-reset:hover {
   background: #3a3a4e;
 }
+
+.vixdio-site-toggle {
+  width: calc(100% - 28px);
+  margin: 0 14px 12px;
+  justify-content: center;
+}
+
+button:disabled, input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.vixdio-volume-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

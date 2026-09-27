@@ -10,6 +10,10 @@ Chrome extension that adds picture and audio controls to any video on any site.
 - **Audio** — volume boost up to 400%, bass/treble EQ, night mode (dialog compressor), balance, mono downmix
 - **Extras** — pop out video (Picture-in-Picture), frame screenshot with filters applied, per-site presets synced across Chrome profiles
 
+The hover toolbar appears at the top-left of the video, including in fullscreen. Use **Disable on this site** in the popup to turn off adjustments, hover controls, and shortcuts for the current hostname. The choice syncs with your Chrome profile; **Enable on this site** restores your saved settings.
+
+Volume and audio effects are opt-in per site: select the checkbox beside **Volume** on Main to enable them. It is off by default, so the site keeps control of volume even when you adjust the picture or playback speed. Unchecking it bypasses audio effects and leaves the current player volume unchanged.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
