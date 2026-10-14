@@ -419,7 +419,9 @@ const OVERLAY_CSS =
   'visibility:hidden;pointer-events:none;transform:scale(.85);' +
   'transition:width 140ms cubic-bezier(.2,.8,.2,1),opacity 100ms ease-out,' +
   'transform 140ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 140ms}' +
-  '.vixdio-ov-control:hover button,.vixdio-ov-control:focus-within button{' +
+  // While hovered, exactly one control is expanded (speed by default) so the bar keeps its width.
+  '.vixdio-ov-control:hover button,.vixdio-overlay:not(:hover) .vixdio-ov-control:focus-within button,' +
+  '.vixdio-overlay:hover:not(:has(.vixdio-ov-more .vixdio-ov-control:hover)) .vixdio-ov-speed button{' +
   'width:26px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition-delay:0s}' +
   '.vixdio-ov-val{min-width:46px;text-align:center;color:#c9c2ff;font-variant-numeric:tabular-nums}' +
   '.vixdio-ov-speed{min-height:32px;flex:none}' +
